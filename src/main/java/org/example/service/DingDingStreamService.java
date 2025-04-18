@@ -8,9 +8,12 @@ import com.dingtalk.open.app.api.callback.OpenDingTalkCallbackListener;
 import com.dingtalk.open.app.api.models.bot.ChatbotMessage;
 import com.dingtalk.open.app.api.models.bot.MessageContent;
 import com.dingtalk.open.app.api.security.AuthClientCredential;
+import org.example.CardCallbackHandler;
+import org.example.ChatBotHandler;
 import org.example.knowledge.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -37,6 +40,11 @@ public class DingDingStreamService {
     private static final String COMMAND_HINT = "*************输入 "+COMMAND+" 可重新选择知识库*************";
     private static StringBuffer knowledgeBuffer = new StringBuffer();
     private static ArrayList<KnowledgeEntry> selectedKnowledgeList = null;
+
+    @Autowired
+    private CardCallbackHandler cardCallbackHandler;
+    @Autowired
+    private ChatBotHandler chatBotHandler;
 
     public DingDingStreamService() {
         try {
@@ -73,40 +81,17 @@ public class DingDingStreamService {
                 .custom()
                 .credential(new AuthClientCredential(clientId, clientSecret))
                 //注册机器人监听器
-                .registerCallbackListener(DingTalkStreamTopics.BOT_MESSAGE_TOPIC, new OpenDingTalkCallbackListener<ChatbotMessage, JSONObject>() {
-                    @Override
-                    public JSONObject execute(ChatbotMessage chatbotMessage) {
-                        log.info("receive robotMessage, {}", JSON.toJSONString(chatbotMessage));
-//                    //开发者根据自身业务需求，处理机器人回调
-                    processRobotMessage(chatbotMessage);
-                    return new JSONObject();
-                    }
-                })
-                //注册事件监听
-//                .registerAllEventListener(new GenericEventListener() {
-//                    public EventAckStatus onEvent(GenericOpenDingTalkEvent event) {
-//                        try {
-//                            //事件唯一Id
-//                            String eventId = event.getEventId();
-//                            //事件类型
-//                            String eventType = event.getEventType();
-//                            //事件产生时间
-//                            Long bornTime = event.getEventBornTime();
-//                            String corpId = event.getEventCorpId();
-//                            String eventUnifiedAppId = event.getEventUnifiedAppId();
-//                            log.info("@@@GenericOpenDingTalkEvent   eventId:{} eventType:{} corpId:{} eventUnifiedAppId:{} bornTime:{} ",eventId,eventType,corpId,eventUnifiedAppId,bornTime);
-//                            //获取事件体
-//                            JSONObject bizData = event.getData();
-//                            //处理事件
-//                            processEvent(bizData);
-//                            //消费成功
-//                            return EventAckStatus.SUCCESS;
-//                        } catch (Exception e) {
-//                            //消费失败
-//                            return EventAckStatus.LATER;
-//                        }
+//                .registerCallbackListener(DingTalkStreamTopics.BOT_MESSAGE_TOPIC, new OpenDingTalkCallbackListener<ChatbotMessage, JSONObject>() {
+//                    @Override
+//                    public JSONObject execute(ChatbotMessage chatbotMessage) {
+//                        log.info("receive robotMessage, {}", JSON.toJSONString(chatbotMessage));
+////                    //开发者根据自身业务需求，处理机器人回调
+//                    processRobotMessage(chatbotMessage);
+//                    return new JSONObject();
 //                    }
 //                })
+                .registerCallbackListener(DingTalkStreamTopics.BOT_MESSAGE_TOPIC,chatBotHandler)
+                .registerCallbackListener(DingTalkStreamTopics.CARD_CALLBACK_TOPIC,cardCallbackHandler)
                 .build().start();
     }
 
@@ -122,7 +107,7 @@ public class DingDingStreamService {
         }
 
         String conversationType =  chatbotMessage.getConversationType();//机器人 1：单聊   2：群聊
-        if(TextUtils.equals(conversationType,"2")){//没有绑定酷应用的 群聊
+        if(TextUtils.equals(conversationType,"2")){// 群聊
             log.info("***************不是单聊 **********************",conversationType);
             return;
         }

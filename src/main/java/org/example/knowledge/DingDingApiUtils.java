@@ -1,6 +1,7 @@
 package org.example.knowledge;
 
 import com.alibaba.fastjson2.JSONObject;
+import com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverResponse;
 import com.aliyun.dingtalkoauth2_1_0.models.GetAccessTokenRequest;
 import com.aliyun.dingtalkoauth2_1_0.models.GetAccessTokenResponse;
 import com.aliyun.dingtalkrobot_1_0.Client;
@@ -8,15 +9,22 @@ import com.aliyun.dingtalkrobot_1_0.models.BatchSendOTOHeaders;
 import com.aliyun.dingtalkrobot_1_0.models.BatchSendOTORequest;
 import com.aliyun.dingtalkrobot_1_0.models.BatchSendOTOResponse;
 import com.aliyun.dingtalkrobot_1_0.models.BatchSendOTOResponseBody;
+import com.aliyun.tea.TeaConverter;
 import com.aliyun.tea.TeaException;
+import com.aliyun.tea.TeaPair;
 import com.aliyun.teaopenapi.models.Config;
 import com.aliyun.teautil.Common;
 import com.aliyun.teautil.models.RuntimeOptions;
+import com.dingtalk.open.app.api.models.bot.ChatbotMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.List;
+import java.util.UUID;
 
 @Component
 public class DingDingApiUtils {
@@ -102,5 +110,173 @@ public class DingDingApiUtils {
         return false;
     }
 
+    public void createAndDeliverCard(ChatbotMessage message) throws Exception {
+            com.aliyun.dingtalkcard_1_0.Client client = createClient();
+            com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverHeaders createAndDeliverHeaders = new com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverHeaders();
+            createAndDeliverHeaders.xAcsDingtalkAccessToken = getAccessToken();
+
+
+            com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestDocOpenDeliverModel docOpenDeliverModel = new com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestDocOpenDeliverModel()
+                    .setUserId("example_user_id");
+            com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestCoFeedOpenDeliverModel coFeedOpenDeliverModel = new com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestCoFeedOpenDeliverModel()
+                    .setBizTag("example_biz_tag")
+                    .setGmtTimeLine(1665473229000L);
+            com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestTopOpenDeliverModel topOpenDeliverModel = new com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestTopOpenDeliverModel()
+                    .setExpiredTimeMillis(1665473229000L)
+                    .setUserIds(java.util.Arrays.asList(
+                            "example_user_id"
+                    ))
+                    .setPlatforms(java.util.Arrays.asList(
+                            "android"
+                    ));
+            java.util.Map<String, String> imRobotOpenDeliverModelExtension = TeaConverter.buildMap(
+                    new TeaPair("key", "example_ext_value")
+            );
+            com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestImRobotOpenDeliverModel imRobotOpenDeliverModel = new com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestImRobotOpenDeliverModel()
+                    .setSpaceType("IM_ROBOT")
+                    .setRobotCode("dingk2eryvqsjcp6q3xp")//dingk2eryvqsjcp6q3xp
+//                    .setExtension(imRobotOpenDeliverModelExtension)
+                    ;
+            java.util.Map<String, String> imGroupOpenDeliverModelExtension = TeaConverter.buildMap(
+                    new TeaPair("key", "example_ext_value")
+            );
+            java.util.Map<String, String> imGroupOpenDeliverModelAtUserIds = TeaConverter.buildMap(
+                    new TeaPair("key", "小明")
+            );
+            com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestImGroupOpenDeliverModel imGroupOpenDeliverModel = new com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestImGroupOpenDeliverModel()
+                    .setRobotCode("dingg3xmqdkpaojuakm8")
+                    .setAtUserIds(imGroupOpenDeliverModelAtUserIds)
+                    .setRecipients(java.util.Arrays.asList(
+                            "example_user_id"
+                    ))
+                    .setExtension(imGroupOpenDeliverModelExtension);
+            com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestTopOpenSpaceModel topOpenSpaceModel = new com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestTopOpenSpaceModel()
+                    .setSpaceType("ONE_BOX");
+            com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestCoFeedOpenSpaceModel coFeedOpenSpaceModel = new com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestCoFeedOpenSpaceModel()
+                    .setTitle("xxxx卡片")
+                    .setCoolAppCode("coolAppCode123");
+            com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestImRobotOpenSpaceModelNotification imRobotOpenSpaceModelNotification = new com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestImRobotOpenSpaceModelNotification()
+                    .setAlertContent("你收到了1条卡片消息")
+                    .setNotificationOff(false);
+            com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestImRobotOpenSpaceModelSearchSupport imRobotOpenSpaceModelSearchSupport = new com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestImRobotOpenSpaceModelSearchSupport()
+                    .setSearchIcon("@lALPDgQ9q8hFhlHNAXzNAqI")
+                    .setSearchTypeName("{\"zh_CN\":\"待办\",\"zh_TW\":\"待辦\",\"en_US\":\"ToDo\"}")
+                    .setSearchDesc("卡片的具体描述");
+            java.util.Map<String, String> imRobotOpenSpaceModelLastMessageI18n = TeaConverter.buildMap(
+                    new TeaPair("key", "互动卡片消息")
+            );
+            com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestImRobotOpenSpaceModel imRobotOpenSpaceModel = new com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestImRobotOpenSpaceModel()
+                    .setSupportForward(false)
+//                    .setLastMessageI18n(imRobotOpenSpaceModelLastMessageI18n)
+//                    .setSearchSupport(imRobotOpenSpaceModelSearchSupport)
+//                    .setNotification(imRobotOpenSpaceModelNotification)
+                    ;
+
+            com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestImGroupOpenSpaceModelNotification imGroupOpenSpaceModelNotification = new com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestImGroupOpenSpaceModelNotification()
+                    .setAlertContent("你收到了1条卡片消息")
+                    .setNotificationOff(false);
+            com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestImGroupOpenSpaceModelSearchSupport imGroupOpenSpaceModelSearchSupport = new com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestImGroupOpenSpaceModelSearchSupport()
+                    .setSearchIcon("@lALPDgQ9q8hFhlHNAXzNAqI")
+                    .setSearchTypeName("{\"zh_CN\":\"待办\",\"zh_TW\":\"待辦\",\"en_US\":\"ToDo\"}")
+                    .setSearchDesc("卡片的具体描述");
+            java.util.Map<String, String> imGroupOpenSpaceModelLastMessageI18n = TeaConverter.buildMap(
+                    new TeaPair("key", "互动卡片消息")
+            );
+            com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestImGroupOpenSpaceModel imGroupOpenSpaceModel = new com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestImGroupOpenSpaceModel()
+                    .setSupportForward(false)
+                    .setLastMessageI18n(imGroupOpenSpaceModelLastMessageI18n)
+                    .setSearchSupport(imGroupOpenSpaceModelSearchSupport)
+                    .setNotification(imGroupOpenSpaceModelNotification);
+            com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestOpenDynamicDataConfigDynamicDataSourceConfigsPullConfig openDynamicDataConfigDynamicDataSourceConfigs0PullConfig = new com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestOpenDynamicDataConfigDynamicDataSourceConfigsPullConfig()
+                    .setPullStrategy("INTERVAL")
+                    .setInterval(30)
+                    .setTimeUnit("SECONDS");
+            java.util.Map<String, String> openDynamicDataConfigDynamicDataSourceConfigs0ConstParams = TeaConverter.buildMap(
+                    new TeaPair("key", "const-01")
+            );
+            com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestOpenDynamicDataConfigDynamicDataSourceConfigs openDynamicDataConfigDynamicDataSourceConfigs0 = new com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestOpenDynamicDataConfigDynamicDataSourceConfigs()
+                    .setDynamicDataSourceId("example_ds_01")
+                    .setConstParams(openDynamicDataConfigDynamicDataSourceConfigs0ConstParams)
+                    .setPullConfig(openDynamicDataConfigDynamicDataSourceConfigs0PullConfig);
+            com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestOpenDynamicDataConfig openDynamicDataConfig = new com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestOpenDynamicDataConfig()
+                    .setDynamicDataSourceConfigs(java.util.Arrays.asList(
+                            openDynamicDataConfigDynamicDataSourceConfigs0
+                    ));
+            java.util.Map<String, String> privateDataValueKeyCardParamMap = TeaConverter.buildMap(
+                    new TeaPair("key", "example_private_value")
+            );
+            com.aliyun.dingtalkcard_1_0.models.PrivateDataValue privateDataValueKey = new com.aliyun.dingtalkcard_1_0.models.PrivateDataValue()
+                    .setCardParamMap(privateDataValueKeyCardParamMap);
+            java.util.Map<String, com.aliyun.dingtalkcard_1_0.models.PrivateDataValue> privateData = TeaConverter.buildMap(
+                    new TeaPair("privateDataValueKey", privateDataValueKey)
+            );
+            java.util.Map<String, String> cardDataCardParamMap = TeaConverter.buildMap(
+                    new TeaPair("key", "example_public_value")
+            );
+            com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestCardData cardData = new com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestCardData()
+                    .setCardParamMap(cardDataCardParamMap);
+
+            com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest createAndDeliverRequest = new com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest()
+//                    .setUserId("example_user_id")
+                    .setCardTemplateId("5475ac32-5ac7-436f-a705-db8831997487.schema")
+                    .setOutTrackId(genCardId(message))
+                    .setCallbackType("STREAM")
+//                    .setCallbackRouteKey("example_route_key")
+                    .setCardData(cardData)
+//                    .setPrivateData(privateData)
+//                    .setOpenDynamicDataConfig(openDynamicDataConfig)
+//                    .setImGroupOpenSpaceModel(imGroupOpenSpaceModel)
+                    .setImRobotOpenSpaceModel(imRobotOpenSpaceModel)
+//                    .setCoFeedOpenSpaceModel(coFeedOpenSpaceModel)
+//                    .setTopOpenSpaceModel(topOpenSpaceModel)
+                    .setOpenSpaceId( "dtv1.card//IM_ROBOT." + message.getSenderStaffId())
+//                    .setImGroupOpenDeliverModel(imGroupOpenDeliverModel)
+                    .setImRobotOpenDeliverModel(imRobotOpenDeliverModel)
+//                    .setTopOpenDeliverModel(topOpenDeliverModel)
+//                    .setCoFeedOpenDeliverModel(coFeedOpenDeliverModel)
+//                    .setDocOpenDeliverModel(docOpenDeliverModel)
+//                    .setUserIdType(1)
+                    ;
+            try {
+                CreateAndDeliverResponse response = client.createAndDeliverWithOptions(createAndDeliverRequest, createAndDeliverHeaders, new com.aliyun.teautil.models.RuntimeOptions());
+                log.info("CreateAndDeliverResponse ",response.getBody().toString());
+            } catch (TeaException err) {
+                if (!com.aliyun.teautil.Common.empty(err.code) && !com.aliyun.teautil.Common.empty(err.message)) {
+                    // err 中含有 code 和 message 属性，可帮助开发定位问题
+                    log.error(err.message);
+                }
+
+            } catch (Exception _err) {
+                TeaException err = new TeaException(_err.getMessage(), _err);
+                if (!com.aliyun.teautil.Common.empty(err.code) && !com.aliyun.teautil.Common.empty(err.message)) {
+                    // err 中含有 code 和 message 属性，可帮助开发定位问题
+                    log.error(err.message);
+                }
+
+            }
+
+    }
+
+    private static com.aliyun.dingtalkcard_1_0.Client createClient() throws Exception {
+        com.aliyun.teaopenapi.models.Config config = new com.aliyun.teaopenapi.models.Config();
+        config.protocol = "https";
+        config.regionId = "central";
+        return new com.aliyun.dingtalkcard_1_0.Client(config);
+    }
+
+    public static String genCardId(ChatbotMessage message) throws NoSuchAlgorithmException {
+        String factor = message.getSenderId() + '_' + message.getSenderCorpId() + '_' + message.getConversationId() + '_'
+                + message.getMsgId() + '_' + UUID.randomUUID().toString();
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        byte[] hash = digest.digest(factor.getBytes(StandardCharsets.UTF_8));
+        StringBuilder hexString = new StringBuilder();
+        for (byte b : hash) {
+            String hex = Integer.toHexString(0xff & b);
+            if (hex.length() == 1)
+                hexString.append('0');
+            hexString.append(hex);
+        }
+        return hexString.toString();
+    }
 
 }
