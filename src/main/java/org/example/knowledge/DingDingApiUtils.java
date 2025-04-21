@@ -34,7 +34,6 @@ public class DingDingApiUtils {
 
     private static final Logger log = LoggerFactory.getLogger(DingDingApiUtils.class);
     private PluginConfig pluginConfig = new PluginConfig() ;
-    private static final String cardTemplateId = "290b8d46-6056-45ec-b063-6a434df3a68c.schema";//绑定写死数据
 
     public Client createSendMessageClient() throws Exception {
         Config config = new Config();
@@ -114,7 +113,7 @@ public class DingDingApiUtils {
         return false;
     }
 
-    public void createAndDeliverCard(ChatbotMessage message, ArrayList<KnowledgeEntry> knowledgeEntryList) throws Exception {
+    public String createAndDeliverCard(String cardTemplateId,ChatbotMessage message, com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestCardData cardData) throws Exception {
             com.aliyun.dingtalkcard_1_0.Client client = createClient();
             com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverHeaders createAndDeliverHeaders = new com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverHeaders();
             createAndDeliverHeaders.xAcsDingtalkAccessToken = getAccessToken();
@@ -214,24 +213,11 @@ public class DingDingApiUtils {
             java.util.Map<String, com.aliyun.dingtalkcard_1_0.models.PrivateDataValue> privateData = TeaConverter.buildMap(
                     new TeaPair("privateDataValueKey", privateDataValueKey)
             );
-        JSONArray array = new JSONArray();
-        for(int i =0;i < knowledgeEntryList.size();i++){
-            KnowledgeEntry entry = knowledgeEntryList.get(i);
-            JSONObject object = new JSONObject();
-            object.put("id",entry.getKnowledgeId());
-            object.put("title",entry.getKnowledgeName());
-            array.add(object);
-        }
-            java.util.Map<String, String> cardDataCardParamMap = TeaConverter.buildMap(
-                    new TeaPair("list", JSON.toJSONString(array))
-            );
-            com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestCardData cardData = new com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestCardData()
-                    .setCardParamMap(cardDataCardParamMap);
-
+        String cardInstanceId = genCardId(message);
             com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest createAndDeliverRequest = new com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest()
 //                    .setUserId("example_user_id")
                     .setCardTemplateId(cardTemplateId)
-                    .setOutTrackId(genCardId(message))
+                    .setOutTrackId(cardInstanceId)
                     .setCallbackType("STREAM")
 //                    .setCallbackRouteKey("example_route_key")
                     .setCardData(cardData)
@@ -266,7 +252,7 @@ public class DingDingApiUtils {
                 }
 
             }
-
+            return cardInstanceId;
     }
 
     private static com.aliyun.dingtalkcard_1_0.Client createClient() throws Exception {

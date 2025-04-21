@@ -1,25 +1,24 @@
 package org.example;
 
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest;
+import com.aliyun.tea.TeaConverter;
+import com.aliyun.tea.TeaPair;
 import com.dingtalk.open.app.api.callback.OpenDingTalkCallbackListener;
 import com.dingtalk.open.app.api.models.bot.ChatbotMessage;
 import com.dingtalk.open.app.api.models.bot.MessageContent;
-import com.sun.xml.bind.v2.TODO;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.*;
 import org.example.knowledge.*;
 import org.example.service.DingDingStreamService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.UUID;
-import java.util.logging.Logger;
+import java.util.concurrent.Semaphore;
 
 import static org.example.service.DingDingStreamService.*;
 
@@ -27,112 +26,187 @@ import static org.example.service.DingDingStreamService.*;
 @Component
 public class ChatBotHandler implements OpenDingTalkCallbackListener<ChatbotMessage, JSONObject> {
 
-  @Override
-  public JSONObject execute(ChatbotMessage chatbotMessage) {
-    processRobotMessage(chatbotMessage);
-    return null;
-  }
+    private static final String KnowledgeCardTemplateId = "290b8d46-6056-45ec-b063-6a434df3a68c.schema";
+    private static final String AiCardTemplateId = "c7407136-9714-4be0-8aab-e9eee3edf05c.schema";
 
-
-  //保存上次 换行符之后的内容
-  static StringBuffer chatMessagePart = new StringBuffer();
-  private static void processRobotMessage(ChatbotMessage chatbotMessage) {
-
-    if(!DingDingStreamService.isValidMessage(chatbotMessage)){
-      return;
+    @Override
+    public JSONObject execute(ChatbotMessage chatbotMessage) {
+        processRobotMessage(chatbotMessage);
+        return null;
     }
 
-      DingDingApiUtils dingDingApiUtils = new DingDingApiUtils();
-      MessageContent text = chatbotMessage.getText();
-      String content = text.getContent();
 
-      if (TextUtils.equals(content, DingDingStreamService.COMMAND)) {
-        DingDingStreamService.searchStatus = DingDingStreamService.SEARCH_STATUS_IDLE;
-      }
+    private static void processRobotMessage(ChatbotMessage chatbotMessage) {
 
-      if (TextUtils.equals(DingDingStreamService.searchStatus, DingDingStreamService.SEARCH_STATUS_IDLE)) {
-        log.info("选择知识库");
-        DingDingStreamService.searchStatus = SEARCH_STATUS_KNOWLEDGE;
+        if (!DingDingStreamService.isValidMessage(chatbotMessage)) {
+            return;
+        }
+
+        DingDingApiUtils dingDingApiUtils = new DingDingApiUtils();
+        MessageContent text = chatbotMessage.getText();
+        String content = text.getContent();
+
+        if (TextUtils.equals(content, DingDingStreamService.COMMAND)) {
+            DingDingStreamService.searchStatus = DingDingStreamService.SEARCH_STATUS_IDLE;
+        }
+
+        if (TextUtils.equals(DingDingStreamService.searchStatus, DingDingStreamService.SEARCH_STATUS_IDLE)) {
+            log.info("选择知识库");
+            DingDingStreamService.searchStatus = SEARCH_STATUS_KNOWLEDGE;
+            try {
+                dingDingApiUtils.createAndDeliverCard(KnowledgeCardTemplateId, chatbotMessage, buildKnowledgeCardData());
+            } catch (Exception e) {
+                log.error(e.getMessage());
+            }
+
+        } else if (TextUtils.equals(searchStatus, SEARCH_STATUS_INPUT_CONTENT)) {
+            log.info("开始搜索");
+            searchStatus = SEARCH_STATUS_SEARCHING;
+            StringBuffer selectedKnowledgeId = new StringBuffer();
+            if (selectedKnowledgeList != null) {
+                for (int i = 0; i < selectedKnowledgeList.size(); i++) {
+                    String id = selectedKnowledgeList.get(i).getKnowledgeId();
+                    if (Integer.parseInt(id) < 0) {
+                        continue;
+                    }
+                    selectedKnowledgeId.append(selectedKnowledgeList.get(i).getKnowledgeId());
+                    if (i < selectedKnowledgeList.size() - 1) {
+                        selectedKnowledgeId.append("");
+                    }
+                }
+            }
+
+            if (TextUtils.isEmpty(conversationId)) {
+                conversationId = SearchKnowledgeApi.createConversation(content, selectedKnowledgeId.toString());
+            }
+            try {
+                String aiCardInstanceId = dingDingApiUtils.createAndDeliverCard(AiCardTemplateId, chatbotMessage, buildAiCardData());
+
+                Semaphore semaphore = new Semaphore(0);
+                StringBuilder fullContent = new StringBuilder();
+                StreamState state = new StreamState();
+
+                SearchKnowledgeHelper.searchByAi(conversationId, content, selectedKnowledgeId.toString(), new SearchKnowledgeHelper.IKnowledgeCallback() {
+                    @Override
+                    public void onEvent(String message) {
+                        JSONObject json = com.alibaba.fastjson.JSON.parseObject(message);
+                        String answer = json.getString("answer");
+                        fullContent.append(answer);
+                        String content = fullContent.toString();
+                        int fullContentLen = content.length();
+                        if (fullContentLen - state.contentLen > 20) {
+                            streaming(aiCardInstanceId, "content", content, true, false, false);
+                            log.info("调用流式更新接口更新内容：current_length=" + state.contentLen + ", next_length=" + fullContentLen);
+                            state.contentLen = fullContentLen;
+                        }
+
+                    }
+
+
+                    @Override
+                    public void onClosed() {
+                        searchStatus = SEARCH_STATUS_INPUT_CONTENT;
+                        streaming(aiCardInstanceId, "content", fullContent.toString(), true, true, false);
+                        semaphore.release();
+                    }
+
+                    @Override
+                    public void onFailure() {
+                        searchStatus = SEARCH_STATUS_INPUT_CONTENT;
+                        log.error("streamCallWithMessage get exception, msg: " + "查找知识库 失败");
+                        streaming(aiCardInstanceId, "content", fullContent.toString(), true, false, true);
+                        semaphore.release();
+                    }
+                });
+                semaphore.acquire();
+            } catch (Exception e) {
+                log.error(e.getMessage());
+            }
+
+        } else {
+            com.alibaba.fastjson2.JSONObject jsonObjContent = new com.alibaba.fastjson2.JSONObject();
+            jsonObjContent.put("content", "正在查找，请稍后再试");
+            String receiveId = chatbotMessage.getSenderStaffId();
+            dingDingApiUtils.sendSingleChatMessage(jsonObjContent, "sampleText", Arrays.asList(receiveId));
+        }
+
+    }
+
+    private static CreateAndDeliverRequest.CreateAndDeliverRequestCardData buildAiCardData() {
+        java.util.Map<String, String> cardDataCardParamMap = TeaConverter.buildMap(
+                new TeaPair("content", "")
+        );
+        com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestCardData cardData = new com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestCardData()
+                .setCardParamMap(cardDataCardParamMap);
+        return cardData;
+    }
+
+    private static CreateAndDeliverRequest.CreateAndDeliverRequestCardData buildKnowledgeCardData() {
+        JSONArray array = new JSONArray();
+        com.alibaba.fastjson2.JSONObject object0 = new com.alibaba.fastjson2.JSONObject();
+        object0.put("id", "-1");
+        object0.put("title", "全部");
+        array.add(object0);
+        for (int i = 0; i < knowledgeList.size(); i++) {
+            KnowledgeEntry entry = knowledgeList.get(i);
+            com.alibaba.fastjson2.JSONObject object = new com.alibaba.fastjson2.JSONObject();
+            object.put("id", entry.getKnowledgeId());
+            object.put("title", entry.getKnowledgeName());
+            array.add(object);
+        }
+        java.util.Map<String, String> cardDataCardParamMap = TeaConverter.buildMap(
+                new TeaPair("list", JSON.toJSONString(array))
+        );
+        com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestCardData cardData = new com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestCardData()
+                .setCardParamMap(cardDataCardParamMap);
+        return cardData;
+    }
+
+    public static void streaming(
+            String cardInstanceId,
+            String contentKey,
+            String contentValue,
+            Boolean isFull,
+            Boolean isFinalize,
+            Boolean isError) {
+
+        // 流式更新: https://open.dingtalk.com/document/isvapp/api-streamingupdate
+        JSONObject data = new JSONObject().fluentPut("outTrackId", cardInstanceId);
+        data.put("key", contentKey);
+        data.put("content", contentValue);
+        data.put("isFull", isFull);
+        data.put("isFinalize", isFinalize);
+        data.put("isError", isError);
+        data.put("guid", UUID.randomUUID().toString());
+
+        String url = "https://api.dingtalk.com" + "/v1.0/card/streaming";
+
+        OkHttpClient client = new OkHttpClient();
+        MediaType JSON = MediaType.get("application/json; charset=utf-8");
+        RequestBody body = RequestBody.create(data.toJSONString(), JSON);
+
+        DingDingApiUtils dingDingApiUtils = new DingDingApiUtils();
+        Request request = new Request.Builder()
+                .url(url)
+                .addHeader("Content-Type", "application/json")
+                .addHeader("Accept", "*/*")
+                .addHeader("x-acs-dingtalk-access-token", dingDingApiUtils.getAccessToken())
+                .put(body)
+                .build();
+
         try {
-          KnowledgeEntry entry = new KnowledgeEntry();
-          entry.setKnowledgeId("-1");
-          entry.setKnowledgeName("全部");
-          knowledgeList.add(0,entry);
-          dingDingApiUtils.createAndDeliverCard(chatbotMessage, knowledgeList);
-        } catch (Exception e) {
-          log.error(e.getMessage());
-        }
-
-      } else if (TextUtils.equals(searchStatus, SEARCH_STATUS_INPUT_CONTENT)) {
-        log.info("开始搜索");
-        searchStatus = SEARCH_STATUS_SEARCHING;
-        StringBuffer selectedKnowledgeId = new StringBuffer();
-        if (selectedKnowledgeList != null) {
-          for (int i = 0; i < selectedKnowledgeList.size(); i++) {
-            String id = selectedKnowledgeList.get(i).getKnowledgeId();
-            if( Integer.parseInt(id) < 0){
-              continue;
+            Response response = client.newCall(request).execute();
+            log.info("streaming update card: " + data.toJSONString());
+            if (response.code() != 200) {
+                log.error("streaming update card failed: " + response.code() + " " + response.body().string());
             }
-            selectedKnowledgeId.append(selectedKnowledgeList.get(i).getKnowledgeId());
-            if (i < selectedKnowledgeList.size() - 1) {
-              selectedKnowledgeId.append("");
-            }
-          }
+        } catch (IOException e) {
+            e.printStackTrace();
         }
-        if (TextUtils.isEmpty(conversationId)) {
-          conversationId = SearchKnowledgeApi.createConversation(content, selectedKnowledgeId.toString());
-        }
-        chatMessagePart = new StringBuffer();
-        SearchKnowledgeHelper.searchByAi(conversationId, content, selectedKnowledgeId.toString(), new SearchKnowledgeHelper.IKnowledgeCallback() {
-          @Override
-          public void onEvent(String message) {
-            JSONObject json = com.alibaba.fastjson.JSON.parseObject(message);
-            String answer = json.getString("answer");
-            int index = answer.lastIndexOf("\n\n");
-            String chatMessage = "";
-            if (index > 0) {
-              chatMessage = answer.substring(0, index);
-              chatMessagePart.append(chatMessage);
+    }
 
-              String receiveId = chatbotMessage.getSenderStaffId();
-              sendSampleTextChatMessage(chatMessagePart.toString(), receiveId);
-
-
-              chatMessagePart = new StringBuffer();
-              chatMessagePart.append(answer.substring(index));
-            } else {
-              chatMessagePart.append(answer);
-
-            }
-
-          }
-
-
-          @Override
-          public void onClosed() {
-            searchStatus = SEARCH_STATUS_INPUT_CONTENT;
-            String receiveId = chatbotMessage.getSenderStaffId();
-            sendSampleTextChatMessage(chatMessagePart.toString(), receiveId);
-
-            String chatMessage = COMMAND_HINT;
-            sendSampleTextChatMessage(chatMessage, receiveId);
-          }
-
-          @Override
-          public void onFailure() {
-            String receiveId = chatbotMessage.getSenderStaffId();
-            sendSampleTextChatMessage("查找知识库 失败", receiveId);
-            searchStatus = SEARCH_STATUS_INPUT_CONTENT;
-          }
-        });
-
-      } else {
-        com.alibaba.fastjson2.JSONObject jsonObjContent = new com.alibaba.fastjson2.JSONObject();
-        jsonObjContent.put("content", "正在查找，请稍后再试");
-        String receiveId = chatbotMessage.getSenderStaffId();
-        dingDingApiUtils.sendSingleChatMessage(jsonObjContent, "sampleText", Arrays.asList(receiveId));
-      }
-
-  }
+    private static class StreamState {
+        int contentLen = 0;
+    }
 }
 
