@@ -29,17 +29,17 @@ public class DingDingStreamService {
 //private static final String clientId = "dingmde68pmxq6ofgd01";
 //    private static final String clientSecret = "CRQVM6WscgX8FGFe8B-u5wG_i_g1nTIixN0dSNADpGKol-qPw5QRCN_5TWDZofvF";
 
-    private static final String SEARCH_STATUS_IDLE = "0";
-    private static final String SEARCH_STATUS_KNOWLEDGE = "1";
-    private static final String SEARCH_STATUS_INPUT_CONTENT = "2";
-    private static final String SEARCH_STATUS_SEARCHING = "3";
-    private static String searchStatus = "0";
-    private static ArrayList<KnowledgeEntry> knowledgeList;
-    private static String conversationId = "";
-    private static final String COMMAND = "##";
-    private static final String COMMAND_HINT = "*************输入 "+COMMAND+" 可重新选择知识库*************";
+    public static final String SEARCH_STATUS_IDLE = "0";
+    public static final String SEARCH_STATUS_KNOWLEDGE = "1";
+    public static final String SEARCH_STATUS_INPUT_CONTENT = "2";
+    public static final String SEARCH_STATUS_SEARCHING = "3";
+    public static String searchStatus = "0";
+    public static ArrayList<KnowledgeEntry> knowledgeList;
+    public static String conversationId = "";
+    public static final String COMMAND = "##";
+    public static final String COMMAND_HINT = "*************输入 "+COMMAND+" 可重新选择知识库*************";
+    public static ArrayList<KnowledgeEntry> selectedKnowledgeList = null;
     private static StringBuffer knowledgeBuffer = new StringBuffer();
-    private static ArrayList<KnowledgeEntry> selectedKnowledgeList = null;
 
     @Autowired
     private CardCallbackHandler cardCallbackHandler;
@@ -98,136 +98,119 @@ public class DingDingStreamService {
     //保存上次 换行符之后的内容
     static StringBuffer chatMessagePart = new StringBuffer();
     private static void processRobotMessage(ChatbotMessage chatbotMessage) {
+        if(!isValidMessage(chatbotMessage)){
+            return;
+        }
+
         DingDingApiUtils dingDingApiUtils = new DingDingApiUtils();
-        PluginConfig pluginConfig = new PluginConfig();
-        String chatbotCorpId = chatbotMessage.getChatbotCorpId();
-        if(!TextUtils.equals(chatbotCorpId,pluginConfig.getCorpId())){
-            log.info("***************不是当前企业 chatbotCorpId：{} **********************",chatbotCorpId);
-            return;
+        MessageContent text = chatbotMessage.getText();
+        String content = text.getContent();
+
+        if(TextUtils.equals(content,COMMAND)){
+            searchStatus = SEARCH_STATUS_IDLE;
         }
 
-        String conversationType =  chatbotMessage.getConversationType();//机器人 1：单聊   2：群聊
-        if(TextUtils.equals(conversationType,"2")){// 群聊
-            log.info("***************不是单聊 **********************",conversationType);
-            return;
-        }
+        if(TextUtils.equals(searchStatus,SEARCH_STATUS_IDLE)){
+            log.info("选择知识库");
+            searchStatus = SEARCH_STATUS_KNOWLEDGE;
+            com.alibaba.fastjson2.JSONObject jsonObjContent = new com.alibaba.fastjson2.JSONObject();
+            jsonObjContent.put("content",knowledgeBuffer.toString());
+            // 文本消息，接收人 userId
+            String receiveId = chatbotMessage.getSenderStaffId();
+            dingDingApiUtils.sendSingleChatMessage(jsonObjContent, "sampleText", Arrays.asList(receiveId));
 
-        String msgtype =  chatbotMessage.getMsgtype();//消息类型。
-        log.info("***************消息类型 ********************** {}",msgtype);
-        if (TextUtils.equals(msgtype, DingTalkRobotUtils.MESSAGE_TYPE_TEXT)) {
-            MessageContent text = chatbotMessage.getText();
-            String content = text.getContent();
-            log.info("***************消息内容 ********************** {}",content);
-
-            if(TextUtils.isEmpty(content) ){
-                return;
+        }else if(TextUtils.equals(searchStatus,SEARCH_STATUS_KNOWLEDGE)){
+            selectedKnowledgeList = getSelectedKnowledgeList(content);
+            log.info("输入搜索内容");
+            searchStatus = SEARCH_STATUS_INPUT_CONTENT;
+            com.alibaba.fastjson2.JSONObject jsonObjContent = new com.alibaba.fastjson2.JSONObject();
+            StringBuffer selectedKnowledgeName = new StringBuffer();
+            if(selectedKnowledgeList == null || selectedKnowledgeList.isEmpty()){
+                selectedKnowledgeName.append("全部知识库");
+            }else {
+                for (int i = 0; i < selectedKnowledgeList.size(); i++) {
+                    selectedKnowledgeName.append(selectedKnowledgeList.get(i).getKnowledgeName());
+                    if(i < selectedKnowledgeList.size()-1){
+                        selectedKnowledgeName.append("，");
+                    }
+                }
             }
-            if(TextUtils.equals(content,COMMAND)){
-                searchStatus = SEARCH_STATUS_IDLE;
+
+            jsonObjContent.put("content","已选择 \n"+selectedKnowledgeName.toString()+"\n 有什么问题，尽管问我");
+            // 文本消息，接收人 userId
+            String receiveId = chatbotMessage.getSenderStaffId();
+            dingDingApiUtils.sendSingleChatMessage(jsonObjContent, "sampleText", Arrays.asList(receiveId));
+        }else if(TextUtils.equals(searchStatus,SEARCH_STATUS_INPUT_CONTENT)){
+            log.info("开始搜索");
+            searchStatus = SEARCH_STATUS_SEARCHING;
+            StringBuffer selectedKnowledgeId = new StringBuffer();
+            if(selectedKnowledgeList != null){
+                for (int i = 0; i < selectedKnowledgeList.size(); i++) {
+                    selectedKnowledgeId.append(selectedKnowledgeList.get(i).getKnowledgeId());
+                    if(i < selectedKnowledgeList.size()-1){
+                        selectedKnowledgeId.append("");
+                    }
+                }
             }
+            if(TextUtils.isEmpty(conversationId)){
+                conversationId = SearchKnowledgeApi.createConversation(content,selectedKnowledgeId.toString());
+            }
+            chatMessagePart = new StringBuffer();
+            SearchKnowledgeHelper.searchByAi(conversationId, content, selectedKnowledgeId.toString(), new SearchKnowledgeHelper.IKnowledgeCallback() {
+                @Override
+                public void onEvent(String message) {
+                    JSONObject json = com.alibaba.fastjson.JSON.parseObject(message);
+                    String answer = json.getString("answer");
+                    int index = answer.lastIndexOf("\n\n");
+                    String chatMessage = "";
+                    if(index > 0){
+                        chatMessage = answer.substring(0,index);
+                        chatMessagePart.append(chatMessage);
 
-            if(TextUtils.equals(searchStatus,SEARCH_STATUS_IDLE)){
-                log.info("选择知识库");
-                searchStatus = SEARCH_STATUS_KNOWLEDGE;
-                com.alibaba.fastjson2.JSONObject jsonObjContent = new com.alibaba.fastjson2.JSONObject();
-                jsonObjContent.put("content",knowledgeBuffer.toString());
-                // 文本消息，接收人 userId
-                String receiveId = chatbotMessage.getSenderStaffId();
-                dingDingApiUtils.sendSingleChatMessage(jsonObjContent, "sampleText", Arrays.asList(receiveId));
-
-            }else if(TextUtils.equals(searchStatus,SEARCH_STATUS_KNOWLEDGE)){
-                selectedKnowledgeList = getSelectedKnowledgeList(content);
-                log.info("输入搜索内容");
-                searchStatus = SEARCH_STATUS_INPUT_CONTENT;
-                com.alibaba.fastjson2.JSONObject jsonObjContent = new com.alibaba.fastjson2.JSONObject();
-                StringBuffer selectedKnowledgeName = new StringBuffer();
-                if(selectedKnowledgeList == null || selectedKnowledgeList.isEmpty()){
-                    selectedKnowledgeName.append("全部知识库");
-                }else {
-                    for (int i = 0; i < selectedKnowledgeList.size(); i++) {
-                        selectedKnowledgeName.append(selectedKnowledgeList.get(i).getKnowledgeName());
-                        if(i < selectedKnowledgeList.size()-1){
-                            selectedKnowledgeName.append("，");
-                        }
-                    }
-                }
-
-                jsonObjContent.put("content","已选择 \n"+selectedKnowledgeName.toString()+"\n 有什么问题，尽管问我");
-                // 文本消息，接收人 userId
-                String receiveId = chatbotMessage.getSenderStaffId();
-                dingDingApiUtils.sendSingleChatMessage(jsonObjContent, "sampleText", Arrays.asList(receiveId));
-            }else if(TextUtils.equals(searchStatus,SEARCH_STATUS_INPUT_CONTENT)){
-                log.info("开始搜索");
-                searchStatus = SEARCH_STATUS_SEARCHING;
-                StringBuffer selectedKnowledgeId = new StringBuffer();
-                if(selectedKnowledgeList != null){
-                    for (int i = 0; i < selectedKnowledgeList.size(); i++) {
-                        selectedKnowledgeId.append(selectedKnowledgeList.get(i).getKnowledgeId());
-                        if(i < selectedKnowledgeList.size()-1){
-                            selectedKnowledgeId.append("");
-                        }
-                    }
-                }
-                if(TextUtils.isEmpty(conversationId)){
-                    conversationId = SearchKnowledgeApi.createConversation(content,selectedKnowledgeId.toString());
-                }
-                chatMessagePart = new StringBuffer();
-                SearchKnowledgeHelper.searchByAi(conversationId, content, selectedKnowledgeId.toString(), new SearchKnowledgeHelper.IKnowledgeCallback() {
-                    @Override
-                    public void onEvent(String message) {
-                        JSONObject json = com.alibaba.fastjson.JSON.parseObject(message);
-                        String answer = json.getString("answer");
-                        int index = answer.lastIndexOf("\n\n");
-                        String chatMessage = "";
-                        if(index > 0){
-                            chatMessage = answer.substring(0,index);
-                            chatMessagePart.append(chatMessage);
-
-                            String receiveId = chatbotMessage.getSenderStaffId();
-                            sendSampleTextChatMessage(chatMessagePart.toString(),receiveId);
-
-
-                            chatMessagePart = new StringBuffer();
-                            chatMessagePart.append(answer.substring(index));
-                        }else {
-                            chatMessagePart.append(answer);
-
-                        }
-
-                    }
-
-
-                    @Override
-                    public void onClosed() {
-                        searchStatus = SEARCH_STATUS_INPUT_CONTENT;
                         String receiveId = chatbotMessage.getSenderStaffId();
                         sendSampleTextChatMessage(chatMessagePart.toString(),receiveId);
 
-                        String chatMessage = COMMAND_HINT;
-                        sendSampleTextChatMessage(chatMessage,receiveId);
+
+                        chatMessagePart = new StringBuffer();
+                        chatMessagePart.append(answer.substring(index));
+                    }else {
+                        chatMessagePart.append(answer);
+
                     }
 
-                    @Override
-                    public void onFailure() {
-                        String receiveId = chatbotMessage.getSenderStaffId();
-                        sendSampleTextChatMessage("查找知识库 失败",receiveId);
-                        searchStatus = SEARCH_STATUS_INPUT_CONTENT;
-                    }
-                });
+                }
 
-            }else {
-                com.alibaba.fastjson2.JSONObject jsonObjContent = new com.alibaba.fastjson2.JSONObject();
-                jsonObjContent.put("content","正在查找，请稍后再试");
-                String receiveId = chatbotMessage.getSenderStaffId();
-                dingDingApiUtils.sendSingleChatMessage(jsonObjContent, "sampleText", Arrays.asList(receiveId));
-            }
 
+                @Override
+                public void onClosed() {
+                    searchStatus = SEARCH_STATUS_INPUT_CONTENT;
+                    String receiveId = chatbotMessage.getSenderStaffId();
+                    sendSampleTextChatMessage(chatMessagePart.toString(),receiveId);
+
+                    String chatMessage = COMMAND_HINT;
+                    sendSampleTextChatMessage(chatMessage,receiveId);
+                }
+
+                @Override
+                public void onFailure() {
+                    String receiveId = chatbotMessage.getSenderStaffId();
+                    sendSampleTextChatMessage("查找知识库 失败",receiveId);
+                    searchStatus = SEARCH_STATUS_INPUT_CONTENT;
+                }
+            });
+
+        }else {
+            com.alibaba.fastjson2.JSONObject jsonObjContent = new com.alibaba.fastjson2.JSONObject();
+            jsonObjContent.put("content","正在查找，请稍后再试");
+            String receiveId = chatbotMessage.getSenderStaffId();
+            dingDingApiUtils.sendSingleChatMessage(jsonObjContent, "sampleText", Arrays.asList(receiveId));
         }
+
 
     }
 
 
-    private static boolean sendSampleTextChatMessage(String content, String receiveId){
+    public static boolean sendSampleTextChatMessage(String content, String receiveId){
         DingDingApiUtils dingDingApiUtils = new DingDingApiUtils();
         com.alibaba.fastjson2.JSONObject referenceObj = new com.alibaba.fastjson2.JSONObject();
         referenceObj.put("content",content.trim());
@@ -261,4 +244,29 @@ public class DingDingStreamService {
         return selectedKnowledgeList;
     }
 
+    public static boolean isValidMessage(ChatbotMessage chatbotMessage){
+        PluginConfig pluginConfig = new PluginConfig();
+        String chatbotCorpId = chatbotMessage.getChatbotCorpId();
+        if (!TextUtils.equals(chatbotCorpId, pluginConfig.getCorpId())) {
+            log.info("***************不是当前企业 chatbotCorpId：{} **********************", chatbotCorpId);
+            return false;
+        }
+
+        String conversationType = chatbotMessage.getConversationType();//机器人 1：单聊   2：群聊
+        if (TextUtils.equals(conversationType, "2")) {// 群聊
+            log.info("***************不是单聊 **********************", conversationType);
+            return false;
+        }
+
+        String msgtype = chatbotMessage.getMsgtype();//消息类型。
+        MessageContent text = chatbotMessage.getText();
+        String content = text.getContent();
+        log.info("***************消息内容 ********************** {}", content);
+        log.info("***************消息类型 ********************** {}", msgtype);
+        if (TextUtils.equals(msgtype, DingTalkRobotUtils.MESSAGE_TYPE_TEXT)) {
+
+            return true;
+        }
+        return false;
+    }
 }

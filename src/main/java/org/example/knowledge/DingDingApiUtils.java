@@ -1,5 +1,7 @@
 package org.example.knowledge;
 
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverResponse;
 import com.aliyun.dingtalkoauth2_1_0.models.GetAccessTokenRequest;
@@ -23,6 +25,7 @@ import org.springframework.stereotype.Component;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -31,6 +34,7 @@ public class DingDingApiUtils {
 
     private static final Logger log = LoggerFactory.getLogger(DingDingApiUtils.class);
     private PluginConfig pluginConfig = new PluginConfig() ;
+    private static final String cardTemplateId = "290b8d46-6056-45ec-b063-6a434df3a68c.schema";//绑定写死数据
 
     public Client createSendMessageClient() throws Exception {
         Config config = new Config();
@@ -110,7 +114,7 @@ public class DingDingApiUtils {
         return false;
     }
 
-    public void createAndDeliverCard(ChatbotMessage message) throws Exception {
+    public void createAndDeliverCard(ChatbotMessage message, ArrayList<KnowledgeEntry> knowledgeEntryList) throws Exception {
             com.aliyun.dingtalkcard_1_0.Client client = createClient();
             com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverHeaders createAndDeliverHeaders = new com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverHeaders();
             createAndDeliverHeaders.xAcsDingtalkAccessToken = getAccessToken();
@@ -210,15 +214,23 @@ public class DingDingApiUtils {
             java.util.Map<String, com.aliyun.dingtalkcard_1_0.models.PrivateDataValue> privateData = TeaConverter.buildMap(
                     new TeaPair("privateDataValueKey", privateDataValueKey)
             );
+        JSONArray array = new JSONArray();
+        for(int i =0;i < knowledgeEntryList.size();i++){
+            KnowledgeEntry entry = knowledgeEntryList.get(i);
+            JSONObject object = new JSONObject();
+            object.put("id",entry.getKnowledgeId());
+            object.put("title",entry.getKnowledgeName());
+            array.add(object);
+        }
             java.util.Map<String, String> cardDataCardParamMap = TeaConverter.buildMap(
-                    new TeaPair("key", "example_public_value")
+                    new TeaPair("list", JSON.toJSONString(array))
             );
             com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestCardData cardData = new com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestCardData()
                     .setCardParamMap(cardDataCardParamMap);
 
             com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest createAndDeliverRequest = new com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest()
 //                    .setUserId("example_user_id")
-                    .setCardTemplateId("5475ac32-5ac7-436f-a705-db8831997487.schema")
+                    .setCardTemplateId(cardTemplateId)
                     .setOutTrackId(genCardId(message))
                     .setCallbackType("STREAM")
 //                    .setCallbackRouteKey("example_route_key")
