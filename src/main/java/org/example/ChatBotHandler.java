@@ -29,11 +29,12 @@ import static org.example.service.DingDingStreamService.*;
 @Component
 public class ChatBotHandler implements OpenDingTalkCallbackListener<ChatbotMessage, JSONObject> {
 
-    private static final String KnowledgeCardTemplateId = "290b8d46-6056-45ec-b063-6a434df3a68c.schema";
-    private static final String AiCardTemplateId = "c7407136-9714-4be0-8aab-e9eee3edf05c.schema";
+    public static final String KnowledgeCardTemplateId = "290b8d46-6056-45ec-b063-6a434df3a68c.schema";
+    public static final String AiCardTemplateId = "c7407136-9714-4be0-8aab-e9eee3edf05c.schema";
 
     @Override
     public JSONObject execute(ChatbotMessage chatbotMessage) {
+        ApplicationConstant.chatbotMessage = chatbotMessage;
         processRobotMessage(chatbotMessage);
 //        DingDingApiUtils dingDingApiUtils = new DingDingApiUtils();
 //        try {
@@ -79,8 +80,11 @@ public class ChatBotHandler implements OpenDingTalkCallbackListener<ChatbotMessa
     }
 
 
-    private static void processRobotMessage(ChatbotMessage chatbotMessage) {
+    public static void processRobotMessage(ChatbotMessage chatbotMessage) {
 
+        if(chatbotMessage == null){
+            return;
+        }
         if (!DingDingStreamService.isValidMessage(chatbotMessage)) {
             return;
         }
@@ -97,7 +101,7 @@ public class ChatBotHandler implements OpenDingTalkCallbackListener<ChatbotMessa
             log.info("选择知识库");
             DingDingStreamService.searchStatus = SEARCH_STATUS_KNOWLEDGE;
             try {
-                dingDingApiUtils.createAndDeliverCard(KnowledgeCardTemplateId, chatbotMessage, buildKnowledgeCardData());
+                dingDingApiUtils.createAndDeliverCard(KnowledgeCardTemplateId, chatbotMessage, DataFactory.buildKnowledgeCardData());
             } catch (Exception e) {
                 log.error(e.getMessage());
             }
@@ -123,7 +127,7 @@ public class ChatBotHandler implements OpenDingTalkCallbackListener<ChatbotMessa
                 conversationId = SearchKnowledgeApi.createConversation(content, selectedKnowledgeId.toString());
             }
             try {
-                String aiCardInstanceId = dingDingApiUtils.createAndDeliverCard(AiCardTemplateId, chatbotMessage, buildAiCardData());
+                String aiCardInstanceId = dingDingApiUtils.createAndDeliverCard(AiCardTemplateId, chatbotMessage, DataFactory.buildAiCardData());
 
                 Semaphore semaphore = new Semaphore(0);
                 StringBuilder fullContent = new StringBuilder();
@@ -181,36 +185,6 @@ public class ChatBotHandler implements OpenDingTalkCallbackListener<ChatbotMessa
 
     }
 
-    private static CreateAndDeliverRequest.CreateAndDeliverRequestCardData buildAiCardData() {
-        java.util.Map<String, String> cardDataCardParamMap = TeaConverter.buildMap(
-                new TeaPair("content", ""),
-                new TeaPair("resources", "")
-        );
-        com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestCardData cardData = new com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestCardData()
-                .setCardParamMap(cardDataCardParamMap);
-        return cardData;
-    }
-
-    private static CreateAndDeliverRequest.CreateAndDeliverRequestCardData buildKnowledgeCardData() {
-        JSONArray array = new JSONArray();
-        com.alibaba.fastjson2.JSONObject object0 = new com.alibaba.fastjson2.JSONObject();
-        object0.put("id", "-1");
-        object0.put("title", "全部");
-        array.add(object0);
-        for (int i = 0; i < knowledgeList.size(); i++) {
-            KnowledgeEntry entry = knowledgeList.get(i);
-            com.alibaba.fastjson2.JSONObject object = new com.alibaba.fastjson2.JSONObject();
-            object.put("id", entry.getKnowledgeId());
-            object.put("title", entry.getKnowledgeName());
-            array.add(object);
-        }
-        java.util.Map<String, String> cardDataCardParamMap = TeaConverter.buildMap(
-                new TeaPair("list", JSON.toJSONString(array))
-        );
-        com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestCardData cardData = new com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestCardData()
-                .setCardParamMap(cardDataCardParamMap);
-        return cardData;
-    }
 
     public static void streaming(
             String cardInstanceId,

@@ -18,6 +18,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 import static org.example.service.DingDingStreamService.*;
 import static org.example.service.DingDingStreamService.SEARCH_STATUS_INPUT_CONTENT;
@@ -39,41 +40,52 @@ public class CardCallbackHandler implements OpenDingTalkCallbackListener<String,
     CardPrivateDataWrapper content = JSON.parseObject(message.getContent(), CardPrivateDataWrapper.class);
     CardPrivateData cardPrivateData = content.getCardPrivateData();
     JSONObject params = cardPrivateData.getParams();
-
-    searchStatus = SEARCH_STATUS_INPUT_CONTENT;
-    KnowledgeEntry knowledgeEntry = JSON.parseObject(params.toJSONString(), KnowledgeEntry.class);
-    selectedKnowledgeList = new ArrayList<>();
-    selectedKnowledgeList.add(knowledgeEntry);
-    DingDingApiUtils dingDingApiUtils = new DingDingApiUtils();
-    com.alibaba.fastjson2.JSONObject jsonObjContent = new com.alibaba.fastjson2.JSONObject();
-    jsonObjContent.put("content","已选择 \n"+knowledgeEntry.getKnowledgeName()+"\n 有什么问题，尽管问我");
-
+    List<String> actionIds = cardPrivateData.getActionIds();
     String userId = message.getUserId();
-    dingDingApiUtils.sendSingleChatMessage(jsonObjContent, "sampleText", Arrays.asList(userId));
+    if(actionIds.contains("recommend_question")){
+//ai卡片 推荐相关问题
+      String question = params.getString("question");
+      DingDingApiUtils dingDingApiUtils = new DingDingApiUtils();
+      com.alibaba.fastjson2.JSONObject jsonObjContent = new com.alibaba.fastjson2.JSONObject();
+      jsonObjContent.put("content",question);
+      dingDingApiUtils.sendSingleChatMessage(jsonObjContent, "sampleText", Arrays.asList(userId));
 
+      ChatBotHandler.processRobotMessage(ApplicationConstant.chatbotMessage);
+    }else {
+      searchStatus = SEARCH_STATUS_INPUT_CONTENT;
+      KnowledgeEntry knowledgeEntry = JSON.parseObject(params.toJSONString(), KnowledgeEntry.class);
+      selectedKnowledgeList = new ArrayList<>();
+      selectedKnowledgeList.add(knowledgeEntry);
+      DingDingApiUtils dingDingApiUtils = new DingDingApiUtils();
+      com.alibaba.fastjson2.JSONObject jsonObjContent = new com.alibaba.fastjson2.JSONObject();
+      jsonObjContent.put("content","已选择 \n"+knowledgeEntry.getKnowledgeName()+"\n 有什么问题，尽管问我");
 
-
-
-
-    String local_input = params.getString("local_input");
-    JSONObject userPrivateData = new JSONObject();
-
-    if (local_input != null) {
-      userPrivateData.put("private_input", local_input);
-      userPrivateData.put("submitted", true);
+      dingDingApiUtils.sendSingleChatMessage(jsonObjContent, "sampleText", Arrays.asList(userId));
     }
 
-    JSONObject cardUpdateOptions = new JSONObject();
-    cardUpdateOptions.put("updateCardDataByKey", true);
-    cardUpdateOptions.put("updatePrivateDataByKey", true);
 
-    JSONObject response = new JSONObject();
-    response.put("cardUpdateOptions", cardUpdateOptions);
-    response.put("userPrivateData",
-        new JSONObject().fluentPut("cardParamMap", jsonObjectUtils.convertJSONValuesToString(userPrivateData)));
 
-    log.info("card callback response: " + JSON.toJSONString(response));
-    return response;
+
+//    String local_input = params.getString("local_input");
+//    JSONObject userPrivateData = new JSONObject();
+//
+//    if (local_input != null) {
+//      userPrivateData.put("private_input", local_input);
+//      userPrivateData.put("submitted", true);
+//    }
+//
+//    JSONObject cardUpdateOptions = new JSONObject();
+//    cardUpdateOptions.put("updateCardDataByKey", true);
+//    cardUpdateOptions.put("updatePrivateDataByKey", true);
+//
+//    JSONObject response = new JSONObject();
+//    response.put("cardUpdateOptions", cardUpdateOptions);
+//    response.put("userPrivateData",
+//        new JSONObject().fluentPut("cardParamMap", jsonObjectUtils.convertJSONValuesToString(userPrivateData)));
+//
+//    log.info("card callback response: " + JSON.toJSONString(response));
+
+    return null;
   }
 
 }
