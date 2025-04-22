@@ -48,16 +48,30 @@ public class ChatBotHandler implements OpenDingTalkCallbackListener<ChatbotMessa
 
     private static UpdateCardRequest.UpdateCardRequestCardData buildAiUpdateCardData() {
         List<String> questionList = SearchKnowledgeApi.recommendationQuestions(conversationId);
-        log.info("buildAiUpdateCardData ",questionList);
-        JSONArray array = new JSONArray();
-        for (int i = 0; i < questionList.size(); i++) {
-            com.alibaba.fastjson2.JSONObject object = new com.alibaba.fastjson2.JSONObject();
-            object.put("name",questionList.get(i));
-            array.add(object);
+        List<String> answerRefList = SearchKnowledgeApi.getAnswerRef(conversationId);
+        log.info("buildAiUpdateCardData questionList:"+JSON.toJSONString(questionList));
+        log.info("buildAiUpdateCardData answerRefList:"+JSON.toJSONString(answerRefList));
+        JSONArray questionArray = new JSONArray();
+        if(questionList != null && !questionList.isEmpty()){
+            for (int i = 0; i < questionList.size(); i++) {
+                com.alibaba.fastjson2.JSONObject object = new com.alibaba.fastjson2.JSONObject();
+                object.put("name",questionList.get(i));
+                questionArray.add(object);
+            }
+        }
+        JSONArray answerRefArray = new JSONArray();
+        if(answerRefList != null && !answerRefList.isEmpty()){
+            for (int i = 0; i < answerRefList.size(); i++) {
+                com.alibaba.fastjson2.JSONObject object = new com.alibaba.fastjson2.JSONObject();
+                object.put("file_name",answerRefList.get(i));
+                answerRefArray.add(object);
+            }
         }
 
+
         java.util.Map<String, String> cardDataCardParamMap = TeaConverter.buildMap(
-                new TeaPair("resources", JSON.toJSONString(array))
+                new TeaPair("resources", JSON.toJSONString(questionArray)),
+                new TeaPair("resources_ref", JSON.toJSONString(answerRefArray))
         );
         com.aliyun.dingtalkcard_1_0.models.UpdateCardRequest.UpdateCardRequestCardData cardData = new com.aliyun.dingtalkcard_1_0.models.UpdateCardRequest.UpdateCardRequestCardData()
                 .setCardParamMap(cardDataCardParamMap);
@@ -140,7 +154,7 @@ public class ChatBotHandler implements OpenDingTalkCallbackListener<ChatbotMessa
                             //打字机 的搜索内容展示完，显示相关推荐
                             dingDingApiUtils.updateCard(aiCardInstanceId,buildAiUpdateCardData());
                         } catch (Exception e) {
-                            throw new RuntimeException(e);
+                            log.error(e.getMessage());
                         }
                         semaphore.release();
                     }

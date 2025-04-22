@@ -309,12 +309,52 @@ public static ArrayList getKnowledgeList()  {
                 if(TextUtils.equals(code,"200")){
                     JSONObject data = respObj.getJSONObject("data");
                     JSONArray questions = data.getJSONArray("questions");
-                    log.info("questions {}",questions);
+                    log.info("questions {}",questions.toString());
                     ArrayList<String> questionList = new ArrayList<>();
                     for (int i = 0;i < questions.size();i++){
                         String question = questions.getString(i);
                         questionList.add(question);
                     }
+                    return questionList;
+                }
+
+            }
+        } catch (IOException e) {
+        }
+        return null;
+    }
+
+    public static List<String> getAnswerRef(String conversationId) {
+        MediaType mediaType = MediaType.parse("application/json; charset=utf-8");
+        JSONObject jsonParams = new JSONObject();
+        jsonParams.put("id",conversationId);
+        RequestBody requestBody = RequestBody.create(jsonParams.toString(), mediaType);
+        Request request = new Request.Builder().url(HOST+"/v5/ai-meta/dialog/get-conversation")
+                .post(requestBody).build();
+        try (Response response = NetworkEngine.getInstance().getHttpClient().newCall(request).execute()) {
+            ResponseBody body = response.body();
+            if (response.code() == 200 && body != null) {
+                JSONObject respObj = JSONObject.parseObject(body.string());
+                String code = respObj.getString("code");
+                if(TextUtils.equals(code,"200")){
+                    JSONObject data = respObj.getJSONObject("data");
+                    log.info("getAnswerRef: "+data.toJSONString());
+                    JSONArray array = data.getJSONArray("list");
+                    ArrayList<String> questionList = new ArrayList<>();
+                    if(!array.isEmpty()){
+                        JSONObject referenceObj = array.getJSONObject(0);
+                        JSONObject refArray = referenceObj.getJSONObject("reference");
+                        JSONArray chunksArr = refArray.getJSONArray("chunks");
+                        if(!chunksArr.isEmpty()){
+                            for (int j = 0;j < chunksArr.size();j++){
+                                JSONObject chunkObj = chunksArr.getJSONObject(j);
+                                String docName = chunkObj.getString("doc_name");
+                                questionList.add(docName);
+                            }
+                        }
+
+                    }
+
                     return questionList;
                 }
 
