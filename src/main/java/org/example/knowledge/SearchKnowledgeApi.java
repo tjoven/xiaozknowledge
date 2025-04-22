@@ -26,14 +26,14 @@ import org.slf4j.LoggerFactory;
 
 public class SearchKnowledgeApi {
     private static final Logger log = LoggerFactory.getLogger(SearchKnowledgeApi.class);
-
+    private static final String HOST = "http://172.16.52.62";
 public static ArrayList getKnowledgeList()  {
     ArrayList knowledgeList = new ArrayList();
     MediaType mediaType = MediaType.parse("application/json; charset=utf-8");
     JSONObject jsonParams = new JSONObject();
     RequestBody requestBody = RequestBody.create(jsonParams.toString(), mediaType);
 
-    Request request = new Request.Builder().url("http://172.16.52.62/v5/ai-meta/knowledge/applicable-list")
+    Request request = new Request.Builder().url(HOST+"/v5/ai-meta/knowledge/applicable-list")
             .post(requestBody)
             .build();
     try (Response response = NetworkEngine.getInstance().getHttpClient().newCall(request).execute()) {
@@ -64,7 +64,7 @@ public static ArrayList getKnowledgeList()  {
         bodyBuilder.add("password",RSAUtils.encryptByPublicKey(password,publicKey));
         bodyBuilder.add("loginType","0");
 
-        Request request = new Request.Builder().url("http://172.16.52.62/v2/user/login_new_encrypt")
+        Request request = new Request.Builder().url(HOST+"/v2/user/login_new_encrypt")
                 .addHeader("Content-Type","application/x-www-form-urlencoded")
                 .post(bodyBuilder.build())
                 .build();
@@ -82,7 +82,7 @@ public static ArrayList getKnowledgeList()  {
     }
 
     public static String getPublicKey(){
-        Request request = new Request.Builder().url("http://172.16.52.62/v2/config/noAuth/get_publickey?secondDomain=172")
+        Request request = new Request.Builder().url(HOST+"/v2/config/noAuth/get_publickey?secondDomain=172")
                 .build();
         try (Response response = NetworkEngine.getInstance().getHttpClient().newCall(request).execute()) {
             ResponseBody body = response.body();
@@ -105,7 +105,7 @@ public static ArrayList getKnowledgeList()  {
         jsonParams.put("id", conversationId);
         String answer = "查找知识库 失败";
         RequestBody requestBody = RequestBody.create(jsonParams.toString(), mediaType);
-        Request request = new Request.Builder().url("http://172.16.52.62/v5/ai-meta/dialog/get-conversation")
+        Request request = new Request.Builder().url(HOST+"/v5/ai-meta/dialog/get-conversation")
                 .post(requestBody).build();
         try (Response response = NetworkEngine.getInstance().getHttpClient().newCall(request).execute()) {
             ResponseBody body = response.body();
@@ -142,7 +142,7 @@ public static ArrayList getKnowledgeList()  {
         jsonParams.put("id", conversationId);
         List<ReferenceEntry> referenceEntryList = new ArrayList<>();
         RequestBody requestBody = RequestBody.create(jsonParams.toString(), mediaType);
-        Request request = new Request.Builder().url("http://172.16.52.62/v5/ai-meta/dialog/get-conversation")
+        Request request = new Request.Builder().url(HOST+"/v5/ai-meta/dialog/get-conversation")
                 .post(requestBody).build();
         try (Response response = NetworkEngine.getInstance().getHttpClient().newCall(request).execute()) {
             ResponseBody body = response.body();
@@ -179,7 +179,7 @@ public static ArrayList getKnowledgeList()  {
         RequestBody body = RequestBody.create(MediaType.parse("application/json; charset=utf-8"),jsonParams.toString());
         // 请求对象
         Request request = new Request.Builder()
-                .url("http://172.16.52.62/v5/ai-meta/chat/completions")
+                .url(HOST+"/v5/ai-meta/chat/completions")
                 .post(body)
                 .build();
 
@@ -243,7 +243,7 @@ public static ArrayList getKnowledgeList()  {
         KnowledgeResultEntry entry = new KnowledgeResultEntry();
         entry.setAnswer("查找知识库 失败");
         RequestBody requestBody = RequestBody.create(jsonParams.toString(), mediaType);
-        Request request = new Request.Builder().url("http://172.16.52.62:85/v1/conversation/completion_filez")
+        Request request = new Request.Builder().url(HOST+":85/v1/conversation/completion_filez")
                 .addHeader("Authorization","Bearer ragflow-E4YmQzNTk4OGY5ZjExZWY4MmU2MDI0Mm")
                 .post(requestBody).build();
         try (Response response = NetworkEngine.getInstance().getHttpClient().newCall(request).execute()) {
@@ -274,7 +274,7 @@ public static ArrayList getKnowledgeList()  {
         }
         String conversationId = "";
         RequestBody requestBody = RequestBody.create(jsonParams.toString(), mediaType);
-        Request request = new Request.Builder().url("http://172.16.52.62/v5/ai-meta/dialog/create-conversation")
+        Request request = new Request.Builder().url(HOST+"/v5/ai-meta/dialog/create-conversation")
                 .post(requestBody).build();
         try (Response response = NetworkEngine.getInstance().getHttpClient().newCall(request).execute()) {
             ResponseBody body = response.body();
@@ -292,5 +292,35 @@ public static ArrayList getKnowledgeList()  {
         } catch (IOException e) {
         }
         return conversationId;
+    }
+
+    public static List<String> recommendationQuestions(String conversationId) {
+        MediaType mediaType = MediaType.parse("application/json; charset=utf-8");
+        JSONObject jsonParams = new JSONObject();
+        jsonParams.put("conversationId",conversationId);
+        RequestBody requestBody = RequestBody.create(jsonParams.toString(), mediaType);
+        Request request = new Request.Builder().url(HOST+"/v5/ai-meta/chat/recommendation-questions")
+                .post(requestBody).build();
+        try (Response response = NetworkEngine.getInstance().getHttpClient().newCall(request).execute()) {
+            ResponseBody body = response.body();
+            if (response.code() == 200 && body != null) {
+                JSONObject respObj = JSONObject.parseObject(body.string());
+                String code = respObj.getString("code");
+                if(TextUtils.equals(code,"200")){
+                    JSONObject data = respObj.getJSONObject("data");
+                    JSONArray questions = data.getJSONArray("questions");
+                    log.info("questions {}",questions);
+                    ArrayList<String> questionList = new ArrayList<>();
+                    for (int i = 0;i < questions.size();i++){
+                        String question = questions.getString(i);
+                        questionList.add(question);
+                    }
+                    return questionList;
+                }
+
+            }
+        } catch (IOException e) {
+        }
+        return null;
     }
 }

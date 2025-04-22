@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest;
+import com.aliyun.dingtalkcard_1_0.models.UpdateCardRequest;
 import com.aliyun.tea.TeaConverter;
 import com.aliyun.tea.TeaPair;
 import com.dingtalk.open.app.api.callback.OpenDingTalkCallbackListener;
@@ -16,7 +17,9 @@ import org.example.service.DingDingStreamService;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Semaphore;
 
@@ -32,7 +35,33 @@ public class ChatBotHandler implements OpenDingTalkCallbackListener<ChatbotMessa
     @Override
     public JSONObject execute(ChatbotMessage chatbotMessage) {
         processRobotMessage(chatbotMessage);
+//        DingDingApiUtils dingDingApiUtils = new DingDingApiUtils();
+//        try {
+//            String aiCardInstanceId = dingDingApiUtils.createAndDeliverCard(AiCardTemplateId, chatbotMessage, buildAiCardData());
+//            streaming(aiCardInstanceId, "content", "结束", true, true, false);
+//            dingDingApiUtils.updateCard(aiCardInstanceId,buildAiUpdateCardData());
+//        } catch (Exception e) {
+//            log.error(e.getMessage());
+//        }
         return null;
+    }
+
+    private static UpdateCardRequest.UpdateCardRequestCardData buildAiUpdateCardData() {
+        List<String> questionList = SearchKnowledgeApi.recommendationQuestions(conversationId);
+        log.info("buildAiUpdateCardData ",questionList);
+        JSONArray array = new JSONArray();
+        for (int i = 0; i < questionList.size(); i++) {
+            com.alibaba.fastjson2.JSONObject object = new com.alibaba.fastjson2.JSONObject();
+            object.put("name",questionList.get(i));
+            array.add(object);
+        }
+
+        java.util.Map<String, String> cardDataCardParamMap = TeaConverter.buildMap(
+                new TeaPair("resources", JSON.toJSONString(array))
+        );
+        com.aliyun.dingtalkcard_1_0.models.UpdateCardRequest.UpdateCardRequestCardData cardData = new com.aliyun.dingtalkcard_1_0.models.UpdateCardRequest.UpdateCardRequestCardData()
+                .setCardParamMap(cardDataCardParamMap);
+        return cardData;
     }
 
 
@@ -107,6 +136,12 @@ public class ChatBotHandler implements OpenDingTalkCallbackListener<ChatbotMessa
                     public void onClosed() {
                         searchStatus = SEARCH_STATUS_INPUT_CONTENT;
                         streaming(aiCardInstanceId, "content", fullContent.toString(), true, true, false);
+                        try {
+                            //打字机 的搜索内容展示完，显示相关推荐
+                            dingDingApiUtils.updateCard(aiCardInstanceId,buildAiUpdateCardData());
+                        } catch (Exception e) {
+                            throw new RuntimeException(e);
+                        }
                         semaphore.release();
                     }
 
@@ -134,7 +169,8 @@ public class ChatBotHandler implements OpenDingTalkCallbackListener<ChatbotMessa
 
     private static CreateAndDeliverRequest.CreateAndDeliverRequestCardData buildAiCardData() {
         java.util.Map<String, String> cardDataCardParamMap = TeaConverter.buildMap(
-                new TeaPair("content", "")
+                new TeaPair("content", ""),
+                new TeaPair("resources", "")
         );
         com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestCardData cardData = new com.aliyun.dingtalkcard_1_0.models.CreateAndDeliverRequest.CreateAndDeliverRequestCardData()
                 .setCardParamMap(cardDataCardParamMap);

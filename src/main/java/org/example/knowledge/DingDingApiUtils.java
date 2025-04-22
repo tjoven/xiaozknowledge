@@ -255,6 +255,52 @@ public class DingDingApiUtils {
             return cardInstanceId;
     }
 
+    public void updateCard(String cardInstanceId,com.aliyun.dingtalkcard_1_0.models.UpdateCardRequest.UpdateCardRequestCardData updateCardData) throws Exception {
+        log.info("updateCard");
+        com.aliyun.dingtalkcard_1_0.Client client = createClient();
+        com.aliyun.dingtalkcard_1_0.models.UpdateCardHeaders updateCardHeaders = new com.aliyun.dingtalkcard_1_0.models.UpdateCardHeaders();
+        updateCardHeaders.xAcsDingtalkAccessToken =  getAccessToken();
+        com.aliyun.dingtalkcard_1_0.models.UpdateCardRequest.UpdateCardRequestCardUpdateOptions cardUpdateOptions = new com.aliyun.dingtalkcard_1_0.models.UpdateCardRequest.UpdateCardRequestCardUpdateOptions()
+                .setUpdateCardDataByKey(true)
+                .setUpdatePrivateDataByKey(false);
+        java.util.Map<String, String> privateDataValueKeyCardParamMap = TeaConverter.buildMap(
+                new TeaPair("key", "example-value")
+        );
+        com.aliyun.dingtalkcard_1_0.models.PrivateDataValue privateDataValueKey = new com.aliyun.dingtalkcard_1_0.models.PrivateDataValue()
+                .setCardParamMap(privateDataValueKeyCardParamMap);
+        java.util.Map<String, com.aliyun.dingtalkcard_1_0.models.PrivateDataValue> privateData = TeaConverter.buildMap(
+                new TeaPair("privateDataValueKey", privateDataValueKey)
+        );
+        java.util.Map<String, String> cardDataCardParamMap = TeaConverter.buildMap(
+                new TeaPair("key", "example-value")
+        );
+        com.aliyun.dingtalkcard_1_0.models.UpdateCardRequest.UpdateCardRequestCardData cardData = new com.aliyun.dingtalkcard_1_0.models.UpdateCardRequest.UpdateCardRequestCardData()
+                .setCardParamMap(cardDataCardParamMap);
+        com.aliyun.dingtalkcard_1_0.models.UpdateCardRequest updateCardRequest = new com.aliyun.dingtalkcard_1_0.models.UpdateCardRequest()
+                .setOutTrackId(cardInstanceId)
+                .setCardData(updateCardData)
+//                .setPrivateData(privateData)
+                .setCardUpdateOptions(cardUpdateOptions)
+//                .setUserIdType(1)
+                ;
+        try {
+            client.updateCardWithOptions(updateCardRequest, updateCardHeaders, new com.aliyun.teautil.models.RuntimeOptions());
+        } catch (TeaException err) {
+            if (!com.aliyun.teautil.Common.empty(err.code) && !com.aliyun.teautil.Common.empty(err.message)) {
+                // err 中含有 code 和 message 属性，可帮助开发定位问题
+                log.error(err.message);
+            }
+
+        } catch (Exception _err) {
+            TeaException err = new TeaException(_err.getMessage(), _err);
+            if (!com.aliyun.teautil.Common.empty(err.code) && !com.aliyun.teautil.Common.empty(err.message)) {
+                // err 中含有 code 和 message 属性，可帮助开发定位问题
+                log.error(err.message);
+            }
+
+        }
+    }
+
     private static com.aliyun.dingtalkcard_1_0.Client createClient() throws Exception {
         com.aliyun.teaopenapi.models.Config config = new com.aliyun.teaopenapi.models.Config();
         config.protocol = "https";
