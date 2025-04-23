@@ -324,7 +324,7 @@ public static ArrayList getKnowledgeList()  {
         return null;
     }
 
-    public static List<String> getAnswerRef(String conversationId) {
+    public static List<FileEntry> getAnswerRef(String conversationId) {
         MediaType mediaType = MediaType.parse("application/json; charset=utf-8");
         JSONObject jsonParams = new JSONObject();
         jsonParams.put("id",conversationId);
@@ -340,7 +340,7 @@ public static ArrayList getKnowledgeList()  {
                     JSONObject data = respObj.getJSONObject("data");
                     log.info("getAnswerRef: "+data.toJSONString());
                     JSONArray array = data.getJSONArray("list");
-                    ArrayList<String> questionList = new ArrayList<>();
+                    ArrayList<FileEntry> fileList = new ArrayList<>();
                     if(!array.isEmpty()){
                         JSONObject referenceObj = array.getJSONObject(0);
                         JSONObject refArray = referenceObj.getJSONObject("reference");
@@ -349,13 +349,16 @@ public static ArrayList getKnowledgeList()  {
                             for (int j = 0;j < chunksArr.size();j++){
                                 JSONObject chunkObj = chunksArr.getJSONObject(j);
                                 String docName = chunkObj.getString("doc_name");
-                                questionList.add(docName);
+                                String neid = chunkObj.getString("neid");
+                                String nsid = chunkObj.getString("nsid");
+                                FileEntry entry = new FileEntry(docName,neid,nsid);
+                                fileList.add(entry);
                             }
                         }
 
                     }
 
-                    return questionList;
+                    return fileList;
                 }
 
             }

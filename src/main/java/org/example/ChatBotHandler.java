@@ -49,7 +49,7 @@ public class ChatBotHandler implements OpenDingTalkCallbackListener<ChatbotMessa
 
     private static UpdateCardRequest.UpdateCardRequestCardData buildAiUpdateCardData() {
         List<String> questionList = SearchKnowledgeApi.recommendationQuestions(conversationId);
-        List<String> answerRefList = SearchKnowledgeApi.getAnswerRef(conversationId);
+        List<FileEntry> answerRefList = SearchKnowledgeApi.getAnswerRef(conversationId);
         log.info("buildAiUpdateCardData questionList:"+JSON.toJSONString(questionList));
         log.info("buildAiUpdateCardData answerRefList:"+JSON.toJSONString(answerRefList));
         JSONArray questionArray = new JSONArray();
@@ -64,7 +64,10 @@ public class ChatBotHandler implements OpenDingTalkCallbackListener<ChatbotMessa
         if(answerRefList != null && !answerRefList.isEmpty()){
             for (int i = 0; i < answerRefList.size(); i++) {
                 com.alibaba.fastjson2.JSONObject object = new com.alibaba.fastjson2.JSONObject();
-                object.put("file_name",answerRefList.get(i));
+                FileEntry entry = answerRefList.get(i);
+                object.put("file_name",entry.getName());
+                String url = String.format("http://172.16.52.62/v/preview/ent/%1s?self_nsid=%2s",entry.getNeid(),entry.getNsid());
+                object.put("link",url);
                 answerRefArray.add(object);
             }
         }
